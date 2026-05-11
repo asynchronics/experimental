@@ -224,9 +224,9 @@ mod tests {
     use super::*;
     use crate::universal_constants::*;
 
-/// Test angle addition.
-#[test]
-pub fn angle_addition_test() {
+    /// Test angle addition.
+    #[test]
+    pub fn angle_addition_test() {
         // Degrees + Degrees
         let d1 = Degrees::new(10.0);
         let d2 = Degrees::new(20.0);
@@ -249,36 +249,36 @@ pub fn angle_addition_test() {
         let r5 = Radians::new(PI);
         let d6 = Degrees::new(180.0);
         let r6 = r5 + d6;
-    assert_eq!(r6.value, TWO_PI);
-}
+        assert_eq!(r6.value, TWO_PI);
+    }
 
-/// Test angle subtraction.
-#[test]
-pub fn angle_subtraction_test() {
-    // Degrees - Degrees
-    let d1 = Degrees::new(20.0);
-    let d2 = Degrees::new(10.0);
-    let d3 = d1 - d2;
-    assert_eq!(d3.value, 10.0);
+    /// Test angle subtraction.
+    #[test]
+    pub fn angle_subtraction_test() {
+        // Degrees - Degrees
+        let d1 = Degrees::new(20.0);
+        let d2 = Degrees::new(10.0);
+        let d3 = d1 - d2;
+        assert_eq!(d3.value, 10.0);
 
-    // Radians - Radians
-    let r1 = Radians::new(TWO_PI);
-    let r2 = Radians::new(PI);
-    let r3 = r1 - r2;
-    assert_eq!(r3.value, PI);
+        // Radians - Radians
+        let r1 = Radians::new(TWO_PI);
+        let r2 = Radians::new(PI);
+        let r3 = r1 - r2;
+        assert_eq!(r3.value, PI);
 
-    // Degrees - Radians
-    let d4 = Degrees::new(180.0);
-    let r4 = Radians::new(PI);
-    let d5 = d4 - r4;
-    assert_eq!(d5.value, 0.0);
+        // Degrees - Radians
+        let d4 = Degrees::new(180.0);
+        let r4 = Radians::new(PI);
+        let d5 = d4 - r4;
+        assert_eq!(d5.value, 0.0);
 
-    // Radians - Degrees
-    let r5 = Radians::new(TWO_PI);
-    let d6 = Degrees::new(180.0);
-    let r6 = r5 - d6;
-    assert_eq!(r6.value, PI);
-}
+        // Radians - Degrees
+        let r5 = Radians::new(TWO_PI);
+        let d6 = Degrees::new(180.0);
+        let r6 = r5 - d6;
+        assert_eq!(r6.value, PI);
+    }
 
     /// Test angle literals
     #[test]
