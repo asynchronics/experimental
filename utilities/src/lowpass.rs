@@ -34,9 +34,9 @@ impl LowPassFilter {
     /// Create a lowpass filter from cutoff frequency and sample rate
     #[inline]
     pub fn from_frequency(cutoff_hz: f64, sample_rate: f64) -> Self {
-        // Avoid division by zero
-        if sample_rate.abs() < 1e-9 {
-            return LowPassFilter::from_alpha(0.0);
+        // Reject invalid or effectively-zero parameters
+        if sample_rate < 1e-9 || cutoff_hz < 1e-9 {
+            return Self::from_alpha(0.0);
         }
 
         let dt = 1.0 / sample_rate;
@@ -50,7 +50,7 @@ impl LowPassFilter {
         }
     }
 
-    /// Create lowa pass filter from alpha coefficient
+    /// Create a lowpass filter from alpha coefficient
     #[inline]
     pub fn from_alpha(filter_alpha: f64) -> Self {
         let clamped_alpha = filter_alpha.clamp(0.0, 1.0);
@@ -60,7 +60,7 @@ impl LowPassFilter {
         }
     }
 
-    /// Update lowpass with new sample
+    /// Update lowpass with a new sample
     #[inline]
     pub fn update(&mut self, input: f64) -> f64 {
         let new_value = self.value * (1.0 - self.alpha) + self.alpha * input;
@@ -68,15 +68,15 @@ impl LowPassFilter {
         self.value
     }
 
-    /// Get current filtered value
+    /// Get the current filtered value
     #[inline]
-    pub fn get_value(&self) -> f64 {
+    pub fn value(&self) -> f64 {
         self.value
     }
 
     /// Get alpha coefficient
     #[inline]
-    pub fn get_alpha(&self) -> f64 {
+    pub fn alpha(&self) -> f64 {
         self.alpha
     }
 }
@@ -94,7 +94,7 @@ mod tests {
         }
         // Should converge near 3.0
 
-        assert!((filter.get_value() - 3.0).abs() < KINDA_SMALL_NUMBER);
+        assert!((filter.value() - 3.0).abs() < KINDA_SMALL_NUMBER);
     }
 
     #[test]
@@ -116,7 +116,7 @@ mod tests {
         let rc = 1.0 / (2.0 * std::f64::consts::PI * cutoff_hz);
         let expected_alpha = dt / (rc + dt);
 
-        assert!((filter.get_alpha() - expected_alpha).abs() < KINDA_SMALL_NUMBER);
+        assert!((filter.alpha() - expected_alpha).abs() < KINDA_SMALL_NUMBER);
     }
 
     #[test]
@@ -125,7 +125,7 @@ mod tests {
 
         for (cutoff_hz, sample_rate) in cases {
             let filter = LowPassFilter::from_frequency(cutoff_hz, sample_rate);
-            let alpha = filter.get_alpha();
+            let alpha = filter.alpha();
             assert!(
                 (0.0..=1.0).contains(&alpha),
                 "alpha out of range for cutoff {cutoff_hz}, sample_rate {sample_rate}"
@@ -138,13 +138,13 @@ mod tests {
         let sample_rate = 100.0;
         let low = LowPassFilter::from_frequency(1.0, sample_rate);
         let high = LowPassFilter::from_frequency(10.0, sample_rate);
-        assert!(high.get_alpha() > low.get_alpha());
+        assert!(high.alpha() > low.alpha());
     }
 
     #[test]
     fn step_response_moves_toward_input_without_overshoot() {
         let mut filter = LowPassFilter::from_alpha(0.25);
-        let mut last = filter.get_value();
+        let mut last = filter.value();
         for _ in 0..50 {
             let value = filter.update(1.0);
             assert!(value >= last, "response should be non-decreasing");
@@ -159,7 +159,7 @@ mod tests {
         let near_zero = LowPassFilter::from_frequency(1e-9, sample_rate);
         let near_one = LowPassFilter::from_frequency(1e9, sample_rate);
 
-        assert!(near_zero.get_alpha() < KINDA_SMALL_NUMBER);
-        assert!((1.0 - near_one.get_alpha()) < KINDA_SMALL_NUMBER);
+        assert!(near_zero.alpha() < KINDA_SMALL_NUMBER);
+        assert!((1.0 - near_one.alpha()) < KINDA_SMALL_NUMBER);
     }
 }
