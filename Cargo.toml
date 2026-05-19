@@ -4,3 +4,5 @@ resolver = "2"
 
 [workspace.dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
+eframe = { version = "0.31" }
+egui_plot = { version = "0.31" }
