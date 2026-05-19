@@ -112,8 +112,7 @@ impl eframe::App for PlotApp {
             }
             plot.show(ui, |pu| {
                 for series in &self.data {
-                    let mut line =
-                        Line::new(PlotPoints::from_iter(series.points.iter().copied()));
+                    let mut line = Line::new(PlotPoints::from_iter(series.points.iter().copied()));
                     if !series.name.is_empty() {
                         line = line.name(&series.name);
                     }
