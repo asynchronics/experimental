@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 serde = { workspace = true }
+eframe = { workspace = true }
+egui_plot = { workspace = true }
