@@ -84,7 +84,7 @@ impl LowPassFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    const KINDA_SMALL_NUMBER: f64 = 1e-4;
+    use crate::universal_constants::*;
 
     #[test]
     fn convergence_test() {
