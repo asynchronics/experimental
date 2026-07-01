@@ -144,7 +144,9 @@ pub struct PidController {
     /// Symmetric bound on the accumulated integral, if any.
     integral_limit: Option<f64>,
     /// Error from the previous `update` call, used for the derivative term.
-    previous_error: f64,
+    /// `None` before the first call (or right after a `reset`), so the
+    /// derivative term is 0 instead of a spurious kick on that call.
+    previous_error: Option<f64>,
     /// Lowpass filter applied to the raw derivative term, if any, to reduce
     /// noise amplification.
     derivative_filter: Option<LowPassFilter>,
@@ -166,7 +168,7 @@ impl PidController {
             master_gain: 1.0,
             integral: 0.0,
             integral_limit: None,
-            previous_error: 0.0,
+            previous_error: None,
             derivative_filter: None,
             min: None,
             max: None,
@@ -194,7 +196,7 @@ impl PidController {
             master_gain: 1.0,
             integral: 0.0,
             integral_limit: None,
-            previous_error: 0.0,
+            previous_error: None,
             derivative_filter: None,
             min,
             max,
@@ -209,9 +211,12 @@ impl PidController {
         assert!(dt > 0.0, "PID delta time must be positive");
 
         // Update the integral and derivative state.
-        let mut derivative = (error - self.previous_error) / dt;
+        let mut derivative = 0.0;
+        if let Some(previous_error) = self.previous_error {
+            derivative = (error - previous_error) / dt;
+        }
+        self.previous_error = Some(error);
         self.integral += error * dt;
-        self.previous_error = error;
 
         // Clamp the integral to [-integral_limit, integral_limit], if
         // configured, as a basic anti-windup safeguard, independent of the
@@ -249,7 +254,7 @@ impl PidController {
     #[inline]
     pub fn reset(&mut self) {
         self.integral = 0.0;
-        self.previous_error = 0.0;
+        self.previous_error = None;
         if let Some(filter) = &mut self.derivative_filter {
             filter.reset();
         }
@@ -523,7 +528,7 @@ mod tests {
     #[test]
     fn pid_derivative_reacts_to_error_change() {
         let mut pid = PidController::new(0.0, 0.0, 1.0);
-        assert_eq!(pid.update(1.0, 0.5), 2.0); // (1.0 - 0.0) / 0.5
+        assert_eq!(pid.update(1.0, 0.5), 0.0); // cold start: no previous error yet
         assert_eq!(pid.update(3.0, 0.5), 4.0); // (3.0 - 1.0) / 0.5
     }
 
@@ -544,8 +549,9 @@ mod tests {
     #[test]
     fn pid_combines_all_three_terms() {
         let mut pid = PidController::new(1.0, 1.0, 1.0);
-        // error = 2.0, dt = 1.0: integral = 2.0, derivative = (2.0 - 0.0) / 1.0 = 2.0
-        // output = 1.0*2.0 + 1.0*2.0 + 1.0*2.0 = 6.0
+        pid.update(1.0, 1.0); // seed previous_error past the cold-start call
+        // error = 2.0, dt = 1.0: integral = 1.0 + 2.0 = 3.0, derivative = (2.0 - 1.0) / 1.0 = 1.0
+        // output = 1.0*2.0 + 1.0*3.0 + 1.0*1.0 = 6.0
         assert_eq!(pid.update(2.0, 1.0), 6.0);
     }
 
@@ -564,8 +570,9 @@ mod tests {
 
         pid.reset();
         assert_eq!(pid.integral(), 0.0);
-        // Derivative term should react as if there were no prior error.
-        assert_eq!(pid.update(2.0, 1.0), 2.0 + 2.0); // integral (2.0) + derivative (2.0)
+        // Derivative is 0 right after reset (cold start), not computed
+        // against the stale pre-reset error.
+        assert_eq!(pid.update(2.0, 1.0), 2.0); // integral (2.0) + derivative (0.0)
     }
 
     #[test]
@@ -628,6 +635,7 @@ mod tests {
         let mut pid = PidController::new(0.0, 0.0, 1.0);
         pid.set_derivative_filter(Some(LowPassFilter::from_alpha(0.5)));
 
+        pid.update(0.0, 1.0); // seed previous_error past the cold-start call
         pid.update(10.0, 1.0);
         assert_ne!(pid.derivative_filter().unwrap().value(), 0.0);
 
@@ -724,8 +732,9 @@ mod tests {
         let mut pid = PidController::new(1.0, 1.0, 1.0);
         pid.set_master_gain(2.0);
         assert_eq!(pid.master_gain(), 2.0);
-        // error = 2.0, dt = 1.0: integral = 2.0, derivative = (2.0 - 0.0) / 1.0 = 2.0
-        // combined = 1.0*2.0 + 1.0*2.0 + 1.0*2.0 = 6.0, scaled by master_gain = 2.0 -> 12.0
+        pid.update(1.0, 1.0); // seed previous_error past the cold-start call
+        // error = 2.0, dt = 1.0: integral = 1.0 + 2.0 = 3.0, derivative = (2.0 - 1.0) / 1.0 = 1.0
+        // combined = 1.0*2.0 + 1.0*3.0 + 1.0*1.0 = 6.0, scaled by master_gain = 2.0 -> 12.0
         assert_eq!(pid.update(2.0, 1.0), 12.0);
     }
 
