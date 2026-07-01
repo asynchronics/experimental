@@ -79,6 +79,12 @@ impl LowPassFilter {
     pub fn alpha(&self) -> f64 {
         self.alpha
     }
+
+    /// Reset the filtered value to zero.
+    #[inline]
+    pub fn reset(&mut self) {
+        self.value = 0.0;
+    }
 }
 
 #[cfg(test)]
@@ -151,6 +157,16 @@ mod tests {
             assert!(value <= 1.0, "response should not overshoot input");
             last = value;
         }
+    }
+
+    #[test]
+    fn reset_clears_filtered_value() {
+        let mut filter = LowPassFilter::from_alpha(0.5);
+        filter.update(10.0);
+        assert_ne!(filter.value(), 0.0);
+
+        filter.reset();
+        assert_eq!(filter.value(), 0.0);
     }
 
     #[test]

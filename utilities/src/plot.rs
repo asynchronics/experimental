@@ -11,7 +11,7 @@
 //! # Examples
 //!
 //! ```no_run
-//! use utilities::plot;
+//! use utilities::plot::plot;
 //!
 //! let mut data = Vec::with_capacity(100);
 //! for i in 0..100 {
