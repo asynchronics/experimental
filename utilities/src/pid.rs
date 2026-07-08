@@ -179,7 +179,7 @@ impl PidController {
     /// gains, clamping the output to `[min, max]`. Either bound can be
     /// `None` to leave that side unbounded.
     #[inline]
-    pub fn with_limits(
+    pub fn new_with_limits(
         proportional_gain: f64,
         integral_gain: f64,
         derivative_gain: f64,
@@ -557,7 +557,7 @@ mod tests {
 
     #[test]
     fn pid_output_clamps_to_limits() {
-        let mut pid = PidController::with_limits(10.0, 0.0, 0.0, Some(-1.0), Some(1.0));
+        let mut pid = PidController::new_with_limits(10.0, 0.0, 0.0, Some(-1.0), Some(1.0));
         assert_eq!(pid.update(5.0, 0.1), 1.0);
         assert_eq!(pid.update(-5.0, 0.1), -1.0);
     }
@@ -595,7 +595,7 @@ mod tests {
 
     #[test]
     fn pid_clear_limits_removes_both_bounds() {
-        let mut pid = PidController::with_limits(2.0, 0.0, 0.0, Some(0.0), Some(1.0));
+        let mut pid = PidController::new_with_limits(2.0, 0.0, 0.0, Some(0.0), Some(1.0));
         pid.clear_limits();
         assert_eq!(pid.min(), None);
         assert_eq!(pid.max(), None);
@@ -740,7 +740,7 @@ mod tests {
 
     #[test]
     fn pid_master_gain_scales_before_output_clamp() {
-        let mut pid = PidController::with_limits(1.0, 0.0, 0.0, Some(-1.0), Some(1.0));
+        let mut pid = PidController::new_with_limits(1.0, 0.0, 0.0, Some(-1.0), Some(1.0));
         pid.set_master_gain(10.0);
         assert_eq!(pid.update(0.5, 0.1), 1.0); // 10.0 * 0.5 = 5.0, clamped to 1.0
     }
