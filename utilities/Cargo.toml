@@ -7,3 +7,6 @@ edition = "2024"
 serde = { workspace = true }
 eframe = { workspace = true }
 egui_plot = { workspace = true }
+nexosim = "1.0.0"
+rand_xoshiro = { version = "0.7.0", features = ["serde"] }
+rand_distr = "0.5.1"
