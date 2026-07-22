@@ -26,6 +26,11 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libraylib-dev
+
       - name: Build
         run: cargo check --workspace --all-targets
 
