@@ -26,10 +26,10 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
 
-      - name: Install dependencies
+      - name: Install Raylib system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libraylib-dev
+          sudo apt-get install -y libx11-dev libxrandr-dev libinerama-dev libxcursor-dev libxi-dev libxext-dev libgl1-mesa-dev libasound2-dev
 
       - name: Build
         run: cargo check --workspace --all-targets
