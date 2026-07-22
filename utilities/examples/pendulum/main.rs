@@ -118,8 +118,8 @@ impl Pendulum {
         let friction_coefficient = 0.1; // for plain bearing
         let friction_torque =
             (normal_force + centrifugal_force) * friction_coefficient * bearing_radius;
-        acceleration += Radians::new(-self.prev_vel.value().signum() * friction_torque)
-            / rotational_inertia;
+        acceleration +=
+            Radians::new(-self.prev_vel.value().signum() * friction_torque) / rotational_inertia;
         self.prev_acc = acceleration;
 
         // Sends position.
