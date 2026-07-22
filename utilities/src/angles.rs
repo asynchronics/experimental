@@ -38,19 +38,20 @@
 //! ```
 
 use crate::universal_constants::{FULL_ANGLE_DEG, FULL_ANGLE_RAD, HALF_ANGLE_DEG, HALF_ANGLE_RAD};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 /// Type for angles in degrees.
 #[repr(transparent)]
-#[derive(Default, Debug, Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Degrees {
     value: f64,
 }
 
 /// Type for angles in radians.
 #[repr(transparent)]
-#[derive(Default, Debug, Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Radians {
     value: f64,
 }
