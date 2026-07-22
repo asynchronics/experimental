@@ -38,9 +38,9 @@
 //! ```
 
 use crate::universal_constants::{FULL_ANGLE_DEG, FULL_ANGLE_RAD, HALF_ANGLE_DEG, HALF_ANGLE_RAD};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
-use serde::{Deserialize, Serialize};
 
 /// Type for angles in degrees.
 #[repr(transparent)]
