@@ -97,6 +97,7 @@ impl Pendulum {
     /// Torque applied at the center of rotation [Nm].
     ///
     /// Calculates pendulum position. Assumes 'elapsed_time' is small.
+    /// Uses semi-implicit Euler method for integration to conserve energy.
     pub async fn torque_in(&mut self, torque: f64, cx: &Context<Self>) {
         // Request gravitational acceleration value.
         let g = self.gravity.send(()).await;
