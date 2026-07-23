@@ -52,7 +52,7 @@ pub struct Pendulum {
     /// Previous acceleration [rad/s^2] -- internal state.
     prev_acc: Radians,
     /// Time of last position update -- internal state.
-    last_position_update: Option<MonotonicTime>,
+    last_position_update: MonotonicTime,
     /// Mass on the end of pendulum [kg] -- constant.
     mass: f64,
     /// Length of the pendulum -- constant.
@@ -79,7 +79,7 @@ impl Pendulum {
             pos: initial_position.normalize_two_pi(),
             prev_vel: Radians::new(0.0),
             prev_acc: Radians::new(0.0),
-            last_position_update: None,
+            last_position_update: MonotonicTime::EPOCH,
             mass,
             length,
         }
@@ -87,31 +87,32 @@ impl Pendulum {
 
     /// Broadcasts the initial position of the pendulum.
     #[nexosim(init)]
-    async fn init(&mut self) {
+    async fn init(&mut self, cx: &Context<Self>) {
         self.position.send(self.pos.to_degrees().value()).await;
         self.velocity.send(self.prev_vel.value()).await;
         self.acceleration.send(self.prev_acc.value()).await;
+        self.last_position_update = cx.time();
     }
 
     /// Torque applied at the center of rotation [Nm].
     ///
     /// Calculates pendulum position. Assumes 'elapsed_time' is small.
     pub async fn torque_in(&mut self, torque: f64, cx: &Context<Self>) {
+        // Request gravitational acceleration value.
         let g = self.gravity.send(()).await;
+        // Calculate time since last update.
         let now = cx.time();
-        if let Some(prev_time) = self.last_position_update {
-            let elapsed_time = now.duration_since(prev_time).as_secs_f64();
-            // Current velocity calculated based on acceleration during last period.
-            let vel = self.prev_vel + self.prev_acc * elapsed_time;
-            // Integration of velocity over time to get position change.
-            self.pos += vel * elapsed_time;
-            // Convert position to [0; 2.0*PI] range.
-            self.pos = self.pos.normalize_two_pi();
-            // Saves velocity for next iteration.
-            self.prev_vel = vel;
-        }
+        let elapsed_time = now.duration_since(self.last_position_update).as_secs_f64();
+        // Current velocity calculated based on acceleration during last period.
+        let vel = self.prev_vel + self.prev_acc * elapsed_time;
+        // Integration of velocity over time to get position change.
+        self.pos += vel * elapsed_time;
+        // Convert position to [0; 2.0*PI] range.
+        self.pos = self.pos.normalize_two_pi();
+        // Saves velocity for next iteration.
+        self.prev_vel = vel;
         // Saves time for next iteration.
-        self.last_position_update = Some(now);
+        self.last_position_update = now;
         // Calculates current acceleration to use at next iteration.
         let gravity_torque = self.mass * g * self.pos.sin() * self.length;
         let rotational_inertia = self.mass * self.length * self.length;
