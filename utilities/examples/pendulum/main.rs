@@ -17,11 +17,11 @@ use serde::{Deserialize, Serialize};
 
 use nexosim::model::{Context, Model, schedulable};
 use nexosim::ports::{
-    EventSinkReader, EventSlotReader, EventSource, Output, SinkState, event_queue_endpoint,
-    event_slot,
+    EventSinkReader, EventSlotReader, EventSource, Output, SinkState, UniRequestor,
+    event_queue_endpoint, event_slot,
 };
 use nexosim::server;
-use nexosim::simulation::{Mailbox, SimInit};
+use nexosim::simulation::{Mailbox, SimInit, SimulationError};
 use nexosim::time::MonotonicTime;
 
 use raylib::prelude::*;
@@ -30,8 +30,6 @@ use utilities::angles::{Degrees, Radians};
 use utilities::pid::PidController;
 
 use std::f64::consts::PI;
-
-const GRAVITY: f64 = 9.80665;
 
 /// Pendulum model
 #[derive(Serialize, Deserialize)]
@@ -44,6 +42,8 @@ pub struct Pendulum {
     pub acceleration: Output<f64>,
     /// Energy [J] -- output port.
     pub energy: Output<f64>,
+    /// Gravitational acceleration [m/s^2] -- requestor port.
+    pub gravity: UniRequestor<(), f64>,
 
     /// Position [rad] -- internal state.
     pos: Radians,
@@ -62,7 +62,12 @@ pub struct Pendulum {
 #[Model]
 impl Pendulum {
     /// Creates a new pendulum model.
-    pub fn new(initial_position: Radians, mass: f64, length: f64) -> Self {
+    pub fn new(
+        initial_position: Radians,
+        mass: f64,
+        length: f64,
+        gravity_requestor: UniRequestor<(), f64>,
+    ) -> Self {
         assert!(mass > 0.0);
         assert!(length > 0.0);
         Self {
@@ -70,6 +75,7 @@ impl Pendulum {
             velocity: Default::default(),
             acceleration: Default::default(),
             energy: Default::default(),
+            gravity: gravity_requestor,
             pos: initial_position.normalize_two_pi(),
             prev_vel: Radians::new(0.0),
             prev_acc: Radians::new(0.0),
@@ -91,6 +97,7 @@ impl Pendulum {
     ///
     /// Calculates pendulum position. Assumes 'elapsed_time' is small.
     pub async fn torque_in(&mut self, torque: f64, cx: &Context<Self>) {
+        let g = self.gravity.send(()).await;
         let now = cx.time();
         if let Some(prev_time) = self.last_position_update {
             let elapsed_time = now.duration_since(prev_time).as_secs_f64();
@@ -107,11 +114,11 @@ impl Pendulum {
         // Saves time for next iteration.
         self.last_position_update = Some(now);
         // Calculates current acceleration to use at next iteration.
-        let gravity_torque = self.mass * GRAVITY * self.pos.sin() * self.length;
+        let gravity_torque = self.mass * g * self.pos.sin() * self.length;
         let rotational_inertia = self.mass * self.length * self.length;
         let mut acceleration = Radians::new((torque - gravity_torque) / rotational_inertia);
         // Adds friction.
-        let normal_force = self.mass * GRAVITY * self.pos.cos();
+        let normal_force = self.mass * g * self.pos.cos();
         let centrifugal_force =
             self.mass * self.prev_vel.value() * self.prev_vel.value() * self.length;
         let bearing_radius = 0.02;
@@ -135,7 +142,7 @@ impl Pendulum {
             * self.prev_vel.value()
             * self.length
             * self.length;
-        let potential_energy = self.mass * GRAVITY * self.length * (1.0 - self.pos.cos());
+        let potential_energy = self.mass * g * self.length * (1.0 - self.pos.cos());
         self.energy.send(kinetic_energy + potential_energy).await;
     }
 }
@@ -216,6 +223,18 @@ impl Controller {
     }
 }
 
+/// Model of environment in which the pendulum is located.
+#[derive(Serialize, Deserialize)]
+pub struct Environment;
+
+#[Model]
+impl Environment {
+    /// Returns the value of gravitational acceleration.
+    pub async fn gravity(&mut self) -> f64 {
+        9.80665
+    }
+}
+
 /// Bench function for the simulation server. Takes a channel to send event readers to allow access to output ports from within Rust.
 fn pendulum_bench(
     viz_tx: mpsc::Sender<EventSlotReader<f64>>,
@@ -226,10 +245,15 @@ fn pendulum_bench(
         let proportional_gain = 30.0;
         let integral_gain = 15.0;
         let derivative_gain = 10.0;
-        let mut pendulum = Pendulum::new(Radians::new(PI / 2.0), 1.0, 1.0);
+
+        // Models
+        let environment = Environment;
+        let environment_mbox = Mailbox::new();
+        let gravity_requestor = UniRequestor::new(Environment::gravity, &environment_mbox);
+        let mut pendulum = Pendulum::new(Radians::new(PI / 2.0), 1.0, 1.0, gravity_requestor);
+        let pendulum_mbox = Mailbox::new();
         let mut controller =
             Controller::new(period, proportional_gain, integral_gain, derivative_gain);
-        let pendulum_mbox = Mailbox::new();
         let controller_mbox = Mailbox::new();
 
         // Connections
@@ -286,12 +310,13 @@ fn pendulum_bench(
         // Adding models to the simulation.
         let sim = bench
             .add_model(pendulum, pendulum_mbox, "pendulum")
-            .add_model(controller, controller_mbox, "controller");
+            .add_model(controller, controller_mbox, "controller")
+            .add_model(environment, environment_mbox, "environment");
         Ok(sim)
     }
 }
 
-fn main() -> Result<(), nexosim::simulation::SimulationError> {
+fn main() -> Result<(), SimulationError> {
     // Channel to send event readers.
     let (viz_tx, viz_rx) = mpsc::channel();
 
