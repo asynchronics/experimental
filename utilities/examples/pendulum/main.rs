@@ -48,9 +48,9 @@ pub struct Pendulum {
     /// Position [rad] -- internal state.
     pos: Radians,
     /// Previous velocity [rad/s] -- internal state.
-    prev_vel: Radians,
+    prev_vel: f64,
     /// Previous acceleration [rad/s^2] -- internal state.
-    prev_acc: Radians,
+    prev_acc: f64,
     /// Time of last position update -- internal state.
     last_position_update: MonotonicTime,
     /// Mass on the end of pendulum [kg] -- constant.
@@ -77,8 +77,8 @@ impl Pendulum {
             energy: Default::default(),
             gravity: gravity_requestor,
             pos: initial_position.normalize_two_pi(),
-            prev_vel: Radians::new(0.0),
-            prev_acc: Radians::new(0.0),
+            prev_vel: 0.0,
+            prev_acc: 0.0,
             last_position_update: MonotonicTime::EPOCH,
             mass,
             length,
@@ -89,8 +89,8 @@ impl Pendulum {
     #[nexosim(init)]
     async fn init(&mut self, cx: &Context<Self>) {
         self.position.send(self.pos.to_degrees().value()).await;
-        self.velocity.send(self.prev_vel.value()).await;
-        self.acceleration.send(self.prev_acc.value()).await;
+        self.velocity.send(self.prev_vel).await;
+        self.acceleration.send(self.prev_acc).await;
         self.last_position_update = cx.time();
     }
 
@@ -106,7 +106,7 @@ impl Pendulum {
         // Current velocity calculated based on acceleration during last period.
         let vel = self.prev_vel + self.prev_acc * elapsed_time;
         // Integration of velocity over time to get position change.
-        self.pos += vel * elapsed_time;
+        self.pos += Radians::new(vel * elapsed_time);
         // Convert position to [0; 2.0*PI] range.
         self.pos = self.pos.normalize_two_pi();
         // Saves velocity for next iteration.
@@ -116,32 +116,26 @@ impl Pendulum {
         // Calculates current acceleration to use at next iteration.
         let gravity_torque = self.mass * g * self.pos.sin() * self.length;
         let rotational_inertia = self.mass * self.length * self.length;
-        let mut acceleration = Radians::new((torque - gravity_torque) / rotational_inertia);
+        let mut acceleration = (torque - gravity_torque) / rotational_inertia;
         // Adds friction.
         let normal_force = self.mass * g * self.pos.cos();
-        let centrifugal_force =
-            self.mass * self.prev_vel.value() * self.prev_vel.value() * self.length;
+        let centrifugal_force = self.mass * self.prev_vel * self.prev_vel * self.length;
         let bearing_radius = 0.02;
         let friction_coefficient = 0.1; // for plain bearing
         let friction_torque =
             (normal_force + centrifugal_force) * friction_coefficient * bearing_radius;
-        acceleration +=
-            Radians::new(-self.prev_vel.value().signum() * friction_torque) / rotational_inertia;
+        acceleration += -self.prev_vel.signum() * friction_torque / rotational_inertia;
         self.prev_acc = acceleration;
 
         // Sends position.
         self.position.send(self.pos.to_degrees().value()).await;
         // Sends velocity.
-        self.velocity.send(self.prev_vel.value()).await;
+        self.velocity.send(self.prev_vel).await;
         // Sends acceleration.
-        self.acceleration.send(self.prev_acc.value()).await;
+        self.acceleration.send(self.prev_acc).await;
         // Calculates and sends energy.
-        let kinetic_energy = 0.5
-            * self.mass
-            * self.prev_vel.value()
-            * self.prev_vel.value()
-            * self.length
-            * self.length;
+        let kinetic_energy =
+            0.5 * self.mass * self.prev_vel * self.prev_vel * self.length * self.length;
         let potential_energy = self.mass * g * self.length * (1.0 - self.pos.cos());
         self.energy.send(kinetic_energy + potential_energy).await;
     }
