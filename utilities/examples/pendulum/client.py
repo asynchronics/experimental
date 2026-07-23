@@ -53,7 +53,6 @@ def step_and_pos(sim, step_duration):
 with Simulation("0.0.0.0:41633") as sim:
     sim.build()
     sim.init()
-    sim.process_event("setpoint", 270.0)
 
     print("Initial position events:", sim.try_read_events("position"))
 

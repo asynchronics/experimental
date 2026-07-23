@@ -148,7 +148,6 @@ def main():
     with Simulation("0.0.0.0:41633") as sim:
         sim.build()
         sim.init()
-        sim.process_event("setpoint", 90.0)
 
         print("Initial position events:", sim.try_read_events("position"))
 

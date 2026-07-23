@@ -158,7 +158,7 @@ pub struct Controller {
     /// Position of the pendulum [rad] -- internal state.
     pos: Radians,
     /// Setpoint for regulator [rad] -- internal state.
-    setpoint: Option<Radians>,
+    setpoint: Radians,
     /// Period of the control loop [s] -- constant.
     period: f64,
     /// Implementation of PID controller.
@@ -173,6 +173,7 @@ impl Controller {
         proportional_gain: f64,
         integral_gain: f64,
         derivative_gain: f64,
+        initial_setpoint: Degrees,
     ) -> Self {
         assert!(period > 0.0);
         let pid = PidController::new(proportional_gain, integral_gain, derivative_gain);
@@ -181,10 +182,27 @@ impl Controller {
             torque_out: Default::default(),
             setpoint_out: Default::default(),
             pos: Radians::new(0.0),
-            setpoint: None,
+            setpoint: initial_setpoint.to_radians(),
             period,
             pid,
         }
+    }
+
+    #[nexosim(init)]
+    async fn init(&mut self, cx: &Context<Self>) {
+        // Broadcast initial setpoint
+        self.setpoint_out
+            .send(self.setpoint.to_degrees().value())
+            .await;
+        // Schedule logic iterations
+        let period = Duration::from_secs_f64(self.period);
+        cx.schedule_periodic_event(
+            period,
+            period,
+            schedulable!(Self::update_controller_logic),
+            (),
+        )
+        .unwrap();
     }
 
     /// Sets the position.
@@ -193,25 +211,19 @@ impl Controller {
         self.pos = Degrees::new(position).to_radians().normalize_two_pi();
     }
 
-    /// Sets the setpoint, schedules iterations if necessary and broadcasts the updated setpoint.
-    pub async fn setpoint_in(&mut self, angle: f64, cx: &Context<Self>) {
-        let is_idle = self.setpoint.is_none();
-        self.setpoint = Some(Degrees::new(angle).to_radians().normalize_two_pi());
-        if is_idle {
-            let period = Duration::from_secs_f64(self.period);
-            cx.schedule_periodic_event(period, period, schedulable!(Self::set_output), ())
-                .unwrap();
-        }
+    /// Sets the setpoint
+    pub async fn setpoint_in(&mut self, angle: f64) {
+        self.setpoint = Degrees::new(angle).to_radians().normalize_two_pi();
         self.setpoint_out
-            .send(self.setpoint.unwrap().to_degrees().value())
+            .send(self.setpoint.to_degrees().value())
             .await;
     }
 
     /// Sends torque value.
     #[nexosim(schedulable)]
-    async fn set_output(&mut self, _: ()) {
+    async fn update_controller_logic(&mut self, _: ()) {
         // Normalized error.
-        let mut error = self.setpoint.unwrap() - self.pos;
+        let mut error = self.setpoint - self.pos;
         let alt_error = -error.value().signum() * (Radians::new(2.0 * PI) - error.abs());
         if alt_error.abs() < error.abs() {
             error = alt_error;
@@ -245,6 +257,7 @@ fn pendulum_bench(
         let proportional_gain = 30.0;
         let integral_gain = 15.0;
         let derivative_gain = 10.0;
+        let initial_setpoint = Degrees::new(90.0);
 
         // Models
         let environment = Environment;
@@ -252,8 +265,13 @@ fn pendulum_bench(
         let gravity_requestor = UniRequestor::new(Environment::gravity, &environment_mbox);
         let mut pendulum = Pendulum::new(Radians::new(PI / 2.0), 1.0, 1.0, gravity_requestor);
         let pendulum_mbox = Mailbox::new();
-        let mut controller =
-            Controller::new(period, proportional_gain, integral_gain, derivative_gain);
+        let mut controller = Controller::new(
+            period,
+            proportional_gain,
+            integral_gain,
+            derivative_gain,
+            initial_setpoint,
+        );
         let controller_mbox = Mailbox::new();
 
         // Connections
