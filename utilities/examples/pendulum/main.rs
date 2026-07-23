@@ -104,10 +104,9 @@ impl Pendulum {
             // Current velocity calculated based on acceleration during last period.
             let vel = self.prev_vel + self.prev_acc * elapsed_time;
             // Integration of velocity over time to get position change.
-            // self.pos += (self.prev_vel + vel) / 2.0 * elapsed_time;
             self.pos += vel * elapsed_time;
             // Convert position to [0; 2.0*PI] range.
-            self.pos = Radians::new((self.pos.value() + 2.0 * PI) % (2.0 * PI));
+            self.pos = self.pos.normalize_two_pi();
             // Saves velocity for next iteration.
             self.prev_vel = vel;
         }
